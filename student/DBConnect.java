@@ -5,15 +5,15 @@ import java.sql.SQLException;
 
 public class DBConnect {
 
-    private static final String URL = "jdbc:mariadb://classdb2.csc.ncsu.edu:3306";
-    private static final String USER = "sshevva";
-    private static final String PASSWORD = "200536998";
+    private static final String URL = "jdbc:mariadb://classdb2.csc.ncsu.edu:3306/bsuryad";
+    private static final String USER = "bsuryad";
+    private static final String PASSWORD = "200535557";
 
     public static Connection getConnection() {
         Connection conn = null;
         try {
             conn = DriverManager.getConnection(URL, USER, PASSWORD);
-            System.out.println("Successfully connected to DB");
+//            System.out.println("Successfully connected to DB");
         } catch (SQLException e) {
             System.out.println("Failed to connect to DB");
             e.printStackTrace();
