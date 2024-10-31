@@ -6,65 +6,65 @@ import java.sql.SQLException;
 
 public class Login {
     private static final Scanner scanner = new Scanner(System.in);
+    private static String authenticatedUserId = null;
 
-    public static void main(String[] args) {
-    
+    // Public method to authenticate a user
+    public static boolean authenticateUser() {
+        while (true) {
+            System.out.print("Enter User ID: ");
+            String userId = scanner.nextLine();
+            System.out.print("Enter Password: ");
+            String password = scanner.nextLine();
 
-            switch (choice) {
-                case 1:
-                    authenticateUser("ADMIN");
-                    break;
-                case 2:
-                    authenticateUser("FACULTY");
-                    break;
-                case 3:
-                    authenticateUser("TA");
-                    break;
-                case 4:
-                    authenticateUser("STUDENT");
-                    break;
-                case 5:
-                    System.out.println("Exiting...");
-                    System.exit(0);
-                default:
-                    System.out.println("Invalid choice. Please try again.");
+            System.out.println("1. Sign-In");
+            System.out.println("2. Go Back");
+            System.out.print("Choose option (1-2): ");
+            int option = scanner.nextInt();
+            scanner.nextLine(); // Consume newline left-over by nextInt()
+
+            if (option == 1) {
+                // Proceed with checking the credentials
+                if (checkCredentials(userId, password)) {
+                    authenticatedUserId = userId;
+                    System.out.println("Login successful.");
+                    return true;
+                } else {
+                    System.out.println("Login Incorrect. Please try again.");
+                }
+            } else if (option == 2) {
+                // Option to go back to the main menu
+                System.out.println("Going back to main menu.");
+                return false;
+            } else {
+                // Handle invalid input
+                System.out.println("Invalid choice. Please enter 1 or 2.");
             }
-    }
-
-    private static void authenticateUser(String role) {
-        System.out.print("Enter User ID: ");
-        String userId = scanner.nextLine();
-        System.out.print("Enter Password: ");
-        String password = scanner.nextLine();
-
-        boolean isAuthenticated = checkCredentials(userId, password, role);
-
-        if (isAuthenticated) {
-        	// Redirect to appropriate home page based on role
-            System.out.println("Login successful! Redirecting to " + role + " home page...");
-        } else {
-            System.out.println("Login incorrect. Please try again.");
         }
     }
 
-    private static boolean checkCredentials(String userId, String password, String role) {
-
-    	String sql = "SELECT COUNT(*) FROM User WHERE user_id = ? AND password = ? AND role = ?";
+ // Helper method to check user credentials in the database
+    private static boolean checkCredentials(String userId, String password) {
+        // Updated table and column names according to new schema
+        String sql = "SELECT COUNT(*) FROM Users WHERE user_id = ? AND password = ?";
         try (Connection conn = DBConnect.getConnection();
              PreparedStatement pstmt = conn.prepareStatement(sql)) {
-            
+
             pstmt.setString(1, userId);
             pstmt.setString(2, password);
-            pstmt.setString(3, role);
 
             ResultSet rs = pstmt.executeQuery();
             if (rs.next()) {
                 return rs.getInt(1) > 0; // If count is greater than 0, credentials are valid
             }
         } catch (SQLException e) {
+            System.out.println("Database connection or query failed.");
             e.printStackTrace();
         }
         return false; // Return false if any exception occurs or no match is found
     }
+
+    // Public method to get the currently authenticated user ID
+    public static String getAuthenticatedUserId() {
+        return authenticatedUserId;
     }
 }
