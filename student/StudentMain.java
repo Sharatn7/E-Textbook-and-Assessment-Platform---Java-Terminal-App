@@ -25,7 +25,11 @@ public class StudentMain {
                     enrollInCourse();
                     break;
                 case 2:
-                    signIn();
+                    if(Login.authenticateUser())
+                    {UserLandingPage landingPage = new UserLandingPage();
+                    landingPage.displayMenu();}
+                    
+                   
                     break;
                 case 3:
                     System.out.println("Exiting...");
@@ -37,56 +41,7 @@ public class StudentMain {
             }
         }
     }
-    
-    private static void signIn() {
-        System.out.println("\n--- Sign In ---");
-        System.out.print("Enter User ID: ");
-        String userId = scanner.nextLine();
-        System.out.print("Enter Password: ");
-        String password = scanner.nextLine();
-
-        System.out.println("1. Sign-In");
-        System.out.println("2. Go Back");
-        System.out.print("Choose option (1-2): ");
-        int option = scanner.nextInt();
-        scanner.nextLine(); // consume newline
-
-        if (option == 1) {
-
-            boolean isAuthenticated = checkCredentials(userId, password, "STUDENT");
-
-            if (isAuthenticated) {
-                System.out.println("Login successful.");
-                UserLandingPage landingPage = new UserLandingPage(userId);
-                landingPage.displayMenu();
-            } else {
-                System.out.println("Login Incorrect. Please try again.");
-            }
-        } else {
-            System.out.println("Going back to main menu.");
-        }
-   
-    }
-
-    private static boolean checkCredentials(String userId, String password, String role) {
-
-    	String sql = "SELECT COUNT(*) FROM User WHERE user_id = ? AND password = ? AND role = ?";
-        try (Connection conn = DBConnect.getConnection();
-             PreparedStatement pstmt = conn.prepareStatement(sql)) {
-            
-            pstmt.setString(1, userId);
-            pstmt.setString(2, password);
-            pstmt.setString(3, role);
-
-            ResultSet rs = pstmt.executeQuery();
-            if (rs.next()) {
-                return rs.getInt(1) > 0; // If count is greater than 0, credentials are valid
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-        return false; // Return false if any exception occurs or no match is found
-    }
+ 
 
     private static void enrollInCourse() {
         System.out.println("\n--- Enroll in Course ---");
@@ -118,7 +73,7 @@ public class StudentMain {
 
     private static boolean enrollStudent(String firstName, String lastName, String email, String token) {
         // Step 1: Check if the course token is valid and fetch course details
-        String courseCheckSql = "SELECT course_id, current_enrollment_count, course_capacity FROM active_course WHERE token = ?";
+        String courseCheckSql = "SELECT course_id, enrollmentCount, capacity FROM activeCourse WHERE unique_token = ?";
         String courseId = null;
         int currentEnrollment = 0;
         int capacity = 0;
@@ -129,8 +84,8 @@ public class StudentMain {
             ResultSet rs = pstmtCourse.executeQuery();
             if (rs.next()) {
                 courseId = rs.getString("course_id");
-                currentEnrollment = rs.getInt("current_enrollment_count");
-                capacity = rs.getInt("course_capacity");
+                currentEnrollment = rs.getInt("enrollmentCount");
+                capacity = rs.getInt("capacity");
             } else {
                 return false; // Token not valid
             }
@@ -145,9 +100,15 @@ public class StudentMain {
             return false; // Failed to create or retrieve user
         }
 
+        // Step 2.5: Check if the student is already enrolled in the course
+        if (isStudentAlreadyEnrolled(userId, courseId)) {
+            System.out.println("You are already enrolled in this course.");
+            return false;
+        }
+
         // Step 3: Enroll if there's room
         if (currentEnrollment < capacity) {
-            String enrollSql = "INSERT INTO Enrollment (course_id, user_id) VALUES (?, ?)";
+            String enrollSql = "INSERT INTO Enrollments (course_id, student_id) VALUES (?, ?)";
             try (Connection conn = DBConnect.getConnection();
                  PreparedStatement pstmtEnroll = conn.prepareStatement(enrollSql)) {
                 pstmtEnroll.setString(1, courseId);
@@ -164,8 +125,23 @@ public class StudentMain {
         }
     }
 
+    private static boolean isStudentAlreadyEnrolled(String userId, String courseId) {
+        String checkEnrollmentSql = "SELECT 1 FROM Enrollments WHERE student_id = ? AND course_id = ?";
+        try (Connection conn = DBConnect.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(checkEnrollmentSql)) {
+            pstmt.setString(1, userId);
+            pstmt.setString(2, courseId);
+            ResultSet rs = pstmt.executeQuery();
+            return rs.next(); // If a record is found, the student is already enrolled
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return false; // Assume not enrolled if there's an error
+        }
+    }
+
+
     private static String createUserIfNotExist(String firstName, String lastName, String email) {
-        String userCheckSql = "SELECT user_id FROM User WHERE email = ?";
+        String userCheckSql = "SELECT user_id FROM Users WHERE email = ?";
         try (Connection conn = DBConnect.getConnection();
              PreparedStatement pstmtCheck = conn.prepareStatement(userCheckSql)) {
             pstmtCheck.setString(1, email);
@@ -174,7 +150,7 @@ public class StudentMain {
                 return rs.getString("user_id"); // User exists, return existing user_id
             } else {
                 // Create new user
-                String createUserSql = "INSERT INTO User (first_name, last_name, email, role, password) VALUES (?, ?, ?, 'STUDENT', 'defaultpass')";
+                String createUserSql = "INSERT INTO Users (first_name, last_name, email) VALUES (?, ?, ?)";
                 PreparedStatement pstmtCreate = conn.prepareStatement(createUserSql, Statement.RETURN_GENERATED_KEYS);
                 pstmtCreate.setString(1, firstName);
                 pstmtCreate.setString(2, lastName);
