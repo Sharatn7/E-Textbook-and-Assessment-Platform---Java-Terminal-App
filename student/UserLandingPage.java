@@ -2,22 +2,22 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Scanner;
 
 public class UserLandingPage {
-    private Scanner scanner;
-    private String userId;
-
-    public UserLandingPage(String userId) {
-        this.scanner = new Scanner(System.in);
-        this.userId = userId;
-    }
+    private Scanner scanner = new Scanner(System.in);
+    private String userId = Login.getAuthenticatedUserId();
+    private SectionResolver sectionResolver = new SectionResolver(Login.getAuthenticatedUserId());
 
     public void displayMenu() {
-        showAvailableContent();
+        System.out.println("\n--- Student Home Page ---");
+        showAvailableContent(Login.getAuthenticatedUserId());
         boolean sessionActive = true;
         while (sessionActive) {
-            System.out.println("\n--- User Landing Page ---");
             System.out.println("1. View a section");
             System.out.println("2. View participation activity points");
             System.out.println("3. Logout");
@@ -43,31 +43,67 @@ public class UserLandingPage {
             }
         }
     }
-
-    private void showAvailableContent() {
+    
+    
+    private void showAvailableContent(String studentId) {
         System.out.println("Available E-book Content:");
         try (Connection conn = DBConnect.getConnection();
              PreparedStatement stmt = conn.prepareStatement(
-                     "SELECT t.title AS textbook, c.chapter_num, c.title AS chapter, s.section_number, s.title AS section " +
-                     "FROM Textbook t " +
-                     "JOIN Chapter c ON t.tb_id = c.tb_id " +
-                     "JOIN Section s ON c.chapter_id = s.chapter_id " +
-                     "ORDER BY t.title, c.chapter_num, s.section_number")) {
+                     "SELECT DISTINCT t.title AS textbook, c.chapter_number AS chapter_num, c.title AS chapter, " +
+                     "s.section_number AS sec_num, s.title AS section, " +
+                     "cb.content_block_number AS block_num, cb.content_type AS block_type " +
+                     "FROM Textbooks t " +
+                     "JOIN Chapters c ON t.textbook_id = c.textbook_id " +
+                     "JOIN Sections s ON c.chapter_id = s.chapter_id " +
+                     "LEFT JOIN ContentBlocks cb ON s.section_id = cb.section_id " +
+                     "JOIN Courses co ON t.textbook_id = co.textbook_id " +
+                     "JOIN Student st ON co.course_id = st.course_id " +
+                     "WHERE c.Hidden = '0' AND s.Hidden = '0' AND cb.Hidden = '0' AND st.student_id = ? " +
+                     "ORDER BY t.title, c.chapter_number, s.section_number, cb.content_block_number")) {
 
+            stmt.setString(1, studentId);
             ResultSet rs = stmt.executeQuery();
             String currentTextbook = "";
+            String currentChapter = "";
+            String currentSection = "";
+            int textbookCount = 0;
+            int visibleChapterCount = 0;
+            int visibleSectionCount = 0;
+            int blockCount = 0;
 
             while (rs.next()) {
                 String textbook = rs.getString("textbook");
-                String chapter = rs.getString("chapter_num") + " " + rs.getString("chapter");
-                String section = rs.getString("section_number") + " " + rs.getString("section");
+                String chapter = rs.getString("chapter");
+                String section = rs.getString("section");
+                String blockType = rs.getString("block_type");
 
                 if (!textbook.equals(currentTextbook)) {
-                    System.out.println("E-book " + textbook + ":");
+                    textbookCount++;
+                    System.out.println("E-book " + textbookCount + ": " + textbook);
                     currentTextbook = textbook;
+                    currentChapter = "";
+                    visibleChapterCount = 0;
                 }
-                System.out.println("  Chapter " + chapter);
-                System.out.println("    Section " + section);
+                if (!chapter.equals(currentChapter)) {
+                    visibleChapterCount++;
+                    System.out.println("  Chapter " + visibleChapterCount + ": " + chapter);
+                    currentChapter = chapter;
+                    currentSection = "";
+                    visibleSectionCount = 0;
+                }
+
+                if (!section.equals(currentSection)) {
+                    visibleSectionCount++;
+                    System.out.println("    Section " + visibleSectionCount + ": " + section);
+                    currentSection = section;
+                    blockCount = 0;
+                }
+
+                // Only print block information if it's a new block
+                if (blockCount == 0 || !blockType.equals(currentSection)) {
+                    blockCount++;
+                    System.out.println("      Block " + blockCount + ": " + blockType);
+                }
             }
         } catch (SQLException e) {
             e.printStackTrace();
@@ -75,12 +111,17 @@ public class UserLandingPage {
         }
     }
 
+
     private void viewSection() {
         System.out.println("\n--- View Section ---");
-        System.out.print("Enter Chapter ID: ");
-        String chapterId = scanner.nextLine();
-        System.out.print("Enter Section ID: ");
-        String sectionId = scanner.nextLine();
+
+        System.out.print("Enter Textbook Number: ");
+        int textbookNum = scanner.nextInt();
+        scanner.nextLine();
+        System.out.print("Enter Chapter Number: ");
+        String chapterNum = scanner.nextLine();  // Read chapter number as string
+        System.out.print("Enter Section Number: ");
+        String sectionNum = scanner.nextLine();  // Read section number as string
         System.out.println("1. View Block");
         System.out.println("2. Go Back");
         System.out.print("Choose option (1-2): ");
@@ -88,83 +129,282 @@ public class UserLandingPage {
         scanner.nextLine(); // consume newline
 
         if (option == 1) {
-            displayBlocks(chapterId, sectionId);
+        	        SectionInfo sectionInfo = sectionResolver.resolveSectionInfo(textbookNum, chapterNum, sectionNum);
+        	        if (sectionInfo != null) {
+        	            displayBlocks(sectionInfo.getSectionId(), sectionNum, getFirstCourseForTextbook(sectionInfo.getTextbookId())); // Assuming displayBlocks can take section ID as an argument
+        	        } else {
+                 System.out.println("Invalid course number or chapter or section number. Please try again.");
+             }
         } else {
             System.out.println("Returning to User Landing Page...");
         }
     }
+ 
+    public String getFirstCourseForTextbook(String textbookId) {
+        String sql = "SELECT co.course_id " +
+                     "FROM Courses co " +
+                     "WHERE co.textbook_id = ? " +
+                     "ORDER BY co.course_id " + // Ensures consistent results
+                     "LIMIT 1"; // Ensures only one result is returned
+
+        try (Connection conn = DBConnect.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setString(1, textbookId);
+            ResultSet rs = stmt.executeQuery();
+
+            if (rs.next()) {
+                return rs.getString("course_id");
+            }
+        } catch (SQLException e) {
+            System.err.println("SQL Exception occurred while fetching the first course ID for textbook ID " + textbookId + ": " + e.getMessage());
+        }
+
+        return null; // Return null if no course is found or an exception occurs
+    }
+
+  
+    private void handleContent() {
+        System.out.println("Press 'Enter' to continue to the next block or type 'back' to go back.");
+        String input = scanner.nextLine();
+        if ("back".equalsIgnoreCase(input.trim())) {
+            return; // This will return control to the calling method, potentially to navigate back
+        }
+    }
     
+    private void displayBlocks(String sectionId, String sectionNum, String courseNumber) {
+        System.out.println("\n--- Displaying Blocks for Section ID: " + sectionNum + " ---");
+        List<String> blockIds = new ArrayList<>();
+        try (Connection conn = DBConnect.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(
+                     "SELECT cb.content_block_id, cb.content_type, cb.content_data, a.activity_number " +
+                     "FROM ContentBlocks cb " +
+                     "LEFT JOIN Activity a ON cb.content_block_id = a.content_block_id " +
+                     "WHERE cb.section_id = ? AND cb.Hidden = '0' " +
+                     "ORDER BY cb.content_block_number")) {
+            pstmt.setString(1, sectionId);
+            ResultSet rs = pstmt.executeQuery();
 
-        public void displayBlocks(String chapterId, String sectionId) {
-            try (Connection conn = DBConnect.getConnection();
-                 PreparedStatement pstmt = conn.prepareStatement(
-                         "SELECT block_id, content, type, correct_answer, option1, option2, option3, option4 FROM ContentBlock WHERE chapter_id = ? AND section_id = ? ORDER BY block_id")) {
-                pstmt.setString(1, chapterId);
-                pstmt.setString(2, sectionId);
-                ResultSet rs = pstmt.executeQuery();
+            while (rs.next()) {
+                String blockId = rs.getString("content_block_id");
+                String contentType = rs.getString("content_type");
+                String contentData = rs.getString("content_data");
+                String activityNumber = rs.getString("activity_number");
+                blockIds.add(blockId);
 
-                while (rs.next()) {
-                    int blockId = rs.getInt("block_id");
-                    String content = rs.getString("content");
-                    String type = rs.getString("type"); // Assuming 'content' or 'activity'
-                    String correctAnswer = rs.getString("correct_answer"); // For activities
-                    String[] options = new String[] {rs.getString("option1"), rs.getString("option2"), rs.getString("option3"), rs.getString("option4")}; // For activities
-
-                    viewBlock(blockId, content, type, correctAnswer, options);
-                }
-                if (!rs.isBeforeFirst()) {
-                    System.out.println("No blocks found. Returning to landing page...");
-                    return;
-                }
-            } catch (SQLException e) {
-                e.printStackTrace();
-                System.out.println("Failed to retrieve blocks.");
-            }
-        }
-
-        private void viewBlock(int blockId, String content, String type, String correctAnswer, String[] options) {
-            System.out.println("Block " + blockId + ": " + content);
-            if (type.equals("activity")) {
-                System.out.println("Choose the correct answer:");
-                for (int i = 0; i < options.length; i++) {
-                    System.out.println((i + 1) + ". " + options[i]);
-                }
-                int userChoice = scanner.nextInt() - 1;
-                scanner.nextLine(); // consume newline
-                if (options[userChoice].equals(correctAnswer)) {
-                    System.out.println("Correct! Explanation: [insert explanation here]");
+                if ("activity".equalsIgnoreCase(contentType)) {
+                    System.out.println("Activity: Answer the question below.");
+                    handleActivity(blockId, activityNumber, courseNumber);
                 } else {
-                    System.out.println("Incorrect. Correct answer: " + correctAnswer + ". Explanation: [insert explanation here]");
+                    System.out.println("Content: " + contentData);
+                    handleContent();
                 }
+                System.out.println("---");
             }
 
-            System.out.println("1. Next/Submit");
-            System.out.println("2. Go back");
-            System.out.print("Choose option (1-2): ");
-            int choice = scanner.nextInt();
-            scanner.nextLine(); // consume newline
-            if (choice == 2) {
-                return; // Exit to previous menu
+            if (blockIds.isEmpty()) {
+                System.out.println("No blocks available for this section.");
             }
-            // Continue to next block or end
+        } catch (SQLException e) {
+            e.printStackTrace();
+            System.out.println("Failed to retrieve blocks for the section.");
         }
+    }
+    
+    private void handleActivity(String blockId, String activityNumber, String courseNumber) {
+        try (Connection conn = DBConnect.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(
+                     "SELECT q.question_text, q.option_1, q.option_2, q.option_3, q.option_4, q.answer, q.explanation_1, q.explanation_2, q.explanation_3, q.explanation_4, q.question_id " +
+                     "FROM Questions q " +
+                     "JOIN Activity a ON q.activity_id = a.activity_id " +
+                     "WHERE a.content_block_id = ? AND a.activity_number = ?")) {
+            pstmt.setString(1, blockId);
+            pstmt.setString(2, activityNumber);
+            ResultSet rs = pstmt.executeQuery();
+
+            while (rs.next()) {
+                System.out.println(rs.getString("question_text"));
+                System.out.println("1: " + rs.getString("option_1"));
+                System.out.println("2: " + rs.getString("option_2"));
+                System.out.println("3: " + rs.getString("option_3"));
+                System.out.println("4: " + rs.getString("option_4"));
+                System.out.println("Enter the ID of the correct answer or press ENTER to skip:");
+                String input = scanner.nextLine();
+                if (input.isEmpty()) {
+                    // Log skipped question with 0 points
+                    updateActivityParticipation(Login.getAuthenticatedUserId(), courseNumber, rs.getString("question_id"), 0);
+                    System.out.println("Question skipped.");
+                } else {
+                    try {
+                        int answerId = Integer.parseInt(input);
+                        checkActivityAnswer(rs, answerId, Login.getAuthenticatedUserId(), courseNumber);
+                    } catch (NumberFormatException e) {
+                        System.out.println("Invalid input. Please enter a valid number.");
+                        // Optionally, you might want to allow the user to reattempt entering a valid input here
+                    }
+                }
+                System.out.println("--- Next Question ---");
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+            System.out.println("Failed to retrieve or handle activity questions.");
+        }
+    }
+
+
+    private void checkActivityAnswer(ResultSet rs, int userAnswer, String studentId, String courseId) throws SQLException {
+        String questionId = rs.getString("question_id");
+        int correctAnswer = rs.getInt("answer");
+        int points = (userAnswer == correctAnswer) ? 3 : 1; // 3 points for correct answer, 1 for attempt
+
+        String explanation = rs.getString("explanation_" + correctAnswer);
+        if (userAnswer == correctAnswer) {
+            System.out.println("Correct! Explanation: " + explanation);
+        } else {
+            System.out.println("Incorrect. Correct answer was: " + correctAnswer + ". Explanation: " + explanation);
+        }
+
+        // Update the activity participation with points
+        updateActivityParticipation(studentId, courseId, questionId, points);
+    }
+
+    private void updateActivityParticipation(String studentId, String courseId, String questionId, int points) {
+        try (Connection conn = DBConnect.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(
+                     "INSERT INTO ActivityParticipation (student_id, course_id, question_id, point) VALUES (?, ?, ?, ?) " +
+                     "ON DUPLICATE KEY UPDATE point = VALUES(point), timestamp = CURRENT_TIMESTAMP()")) {
+            pstmt.setString(1, studentId);
+            pstmt.setString(2, courseId);
+            pstmt.setString(3, questionId);
+            pstmt.setInt(4, points);
+            int affectedRows = pstmt.executeUpdate();
+            if (affectedRows > 0) {
+                System.out.println("Score updated successfully.");
+            } else {
+                System.out.println("Failed to update score.");
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+            System.out.println("Error updating the activity participation.");
+        }
+    }
 
 
     private void viewParticipationPoints() {
-            try (Connection conn = DBConnect.getConnection()) {
-                String sql = "SELECT SUM(points) AS totalPoints FROM Participation WHERE student_id = ?";
-                PreparedStatement pstmt = conn.prepareStatement(sql);
-                pstmt.setString(1, this.userId);
-                ResultSet rs = pstmt.executeQuery();
+        try (Connection conn = DBConnect.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(
+                 "SELECT total_participation_points FROM ParticipationSummary WHERE student_id = ?")) {
+            pstmt.setString(1, this.userId);
+            ResultSet rs = pstmt.executeQuery();
 
-                if (rs.next()) {
-                    int totalPoints = rs.getInt("totalPoints");
-                    System.out.println("Total Participation Points: " + totalPoints);
-                } else {
-                    System.out.println("No participation points found.");
+            if (rs.next()) {
+                int totalPoints = rs.getInt("total_participation_points");
+                System.out.println("Total Participation Points: " + totalPoints);
+            } else {
+                System.out.println("No participation points found.");
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+            System.out.println("Failed to retrieve participation points.");
+        }
+    }
+}
+
+
+class SectionResolver {
+    private Map<Integer, String> textbookNumberToId = new HashMap<>();
+    private Map<String, String> chapterNumberToId = new HashMap<>();
+    private Map<String, Map<String, String>> sectionNumberToId = new HashMap<>();
+    private String studentId; // Student ID assumed to be set via constructor
+
+    public SectionResolver(String studentId) {
+        this.studentId = studentId;
+        populateMappings();
+    }
+
+    private void populateMappings() {
+        int textbookCounter = 1;
+        String lastTextbookId = "";
+        Map<String, Integer> chapterCounters = new HashMap<>();
+
+        try (Connection conn = DBConnect.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(
+                 "SELECT DISTINCT t.textbook_id, c.chapter_id, c.chapter_number, s.section_id, s.section_number " +
+                 "FROM Textbooks t " +
+                 "JOIN Chapters c ON t.textbook_id = c.textbook_id " +
+                 "JOIN Sections s ON c.chapter_id = s.chapter_id " +
+                 "JOIN Courses co ON t.textbook_id = co.textbook_id " +
+                 "JOIN Student st ON co.course_id = st.course_id " +
+                 "WHERE c.Hidden = '0' AND s.Hidden = '0' AND st.student_id = ? " +
+                 "ORDER BY t.textbook_id, c.chapter_number, s.section_number")) {
+
+            stmt.setString(1, studentId);
+            ResultSet rs = stmt.executeQuery();
+            while (rs.next()) {
+                String textbookId = rs.getString("textbook_id");
+                String chapterId = rs.getString("chapter_id");
+                String sectionId = rs.getString("section_id");
+
+                if (!textbookId.equals(lastTextbookId)) {
+                    lastTextbookId = textbookId;
+                    textbookNumberToId.put(textbookCounter, textbookId);
+                    chapterCounters.clear();
+                    textbookCounter++;
                 }
-            } catch (SQLException e) {
-                e.printStackTrace();
+
+                Integer chapterIndex = chapterCounters.computeIfAbsent(chapterId, k -> chapterCounters.size() + 1);
+                chapterNumberToId.put(textbookId + "-" + chapterIndex, chapterId);
+
+                Map<String, String> sections = sectionNumberToId.computeIfAbsent(chapterId, k -> new HashMap<>());
+                int sectionIndex = sections.size() + 1;
+                sections.put(String.valueOf(sectionIndex), sectionId);
+            }
+        } catch (SQLException e) {
+            System.err.println("SQL Exception occurred while populating mappings: " + e.getMessage());
+        }
+    }
+
+    public SectionInfo resolveSectionInfo(int textbookNumber, String chapterNumber, String sectionNumber) {
+        String textbookId = textbookNumberToId.get(textbookNumber);
+        if (textbookId != null) {
+            String chapterId = chapterNumberToId.get(textbookId + "-" + chapterNumber);
+            if (chapterId != null) {
+                Map<String, String> sections = sectionNumberToId.get(chapterId);
+                if (sections != null) {
+                    String sectionId = sections.get(sectionNumber);
+                    if (sectionId != null) {
+                        return new SectionInfo(textbookId, sectionId);
+                    }
+                }
             }
         }
+        return null;
+    }
+
 }
+
+class SectionInfo {
+    private String textbookId;
+    private String sectionId;
+
+    public SectionInfo(String textbookId, String sectionId) {
+        this.textbookId = textbookId;
+        this.sectionId = sectionId;
+    }
+
+    public String getTextbookId() {
+        return textbookId;
+    }
+
+    public String getSectionId() {
+        return sectionId;
+    }
+
+    @Override
+    public String toString() {
+        return "TextbookID: " + textbookId + ", SectionID: " + sectionId;
+    }
+}
+
+
+
