@@ -142,7 +142,8 @@ public class StudentMain {
     }
 
 
-    private static String createUserIfNotExist(String firstName, String lastName, String email) {
+   private static String createUserIfNotExist(String firstName, String lastName, String email) {
+        // Check if the user already exists
         String userCheckSql = "SELECT user_id FROM Users WHERE email = ?";
         try (Connection conn = DBConnect.getConnection();
              PreparedStatement pstmtCheck = conn.prepareStatement(userCheckSql)) {
@@ -151,23 +152,35 @@ public class StudentMain {
             if (rs.next()) {
                 return rs.getString("user_id"); // User exists, return existing user_id
             } else {
-                // Create new user
+                // User does not exist, create a new user
                 String createUserSql = "INSERT INTO Users (first_name, last_name, email) VALUES (?, ?, ?)";
-                PreparedStatement pstmtCreate = conn.prepareStatement(createUserSql, Statement.RETURN_GENERATED_KEYS);
-                pstmtCreate.setString(1, firstName);
-                pstmtCreate.setString(2, lastName);
-                pstmtCreate.setString(3, email);
-                pstmtCreate.executeUpdate();
-                ResultSet keys = pstmtCreate.getGeneratedKeys();
-                if (keys.next()) {
-                    return keys.getString(1); // Return new user_id
+                try (PreparedStatement pstmtCreate = conn.prepareStatement(createUserSql)) {
+                    pstmtCreate.setString(1, firstName);
+                    pstmtCreate.setString(2, lastName);
+                    pstmtCreate.setString(3, email);
+                    int affectedRows = pstmtCreate.executeUpdate();
+                    if (affectedRows == 0) {
+                        throw new SQLException("Creating user failed, no rows affected.");
+                    }
+
+                    // Fetch the newly created user's ID
+                    try (PreparedStatement pstmtFetch = conn.prepareStatement("SELECT user_id FROM Users WHERE email = ?")) {
+                        pstmtFetch.setString(1, email);
+                        ResultSet rsFetch = pstmtFetch.executeQuery();
+                        if (rsFetch.next()) {
+                            return rsFetch.getString("user_id");  // Return new user_id
+                        } else {
+                            throw new SQLException("Failed to fetch newly created user ID.");
+                        }
+                    }
                 }
             }
         } catch (SQLException e) {
             e.printStackTrace();
         }
-        return null; // Return null if user creation fails
+        return null; // Return null if user creation fails or user ID cannot be fetched
     }
+
 
     
 }
