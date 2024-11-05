@@ -1,5 +1,3 @@
-package student;
-import homepage.*;
 import java.util.Scanner;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
