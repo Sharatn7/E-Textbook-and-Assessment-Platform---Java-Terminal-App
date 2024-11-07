@@ -15,7 +15,7 @@ java -version
 
 1. **Download the JAR File**
 
-   Download the `DBMS-Final_Code.jar` file from the [releases section](https://github.com/Sharatn7/E-learning_Platform/tree/main) of this repository or ensure it is located in your current directory.
+   Download the file [DBMS-Final_Code.jar](https://github.com/Sharatn7/E-learning_Platform/tree/main)
 
 2. **Open a Terminal or Command Prompt**
 
