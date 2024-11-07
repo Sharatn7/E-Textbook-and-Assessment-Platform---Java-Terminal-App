@@ -19,7 +19,7 @@ To check if Java is installed, run:
 ```bash
 java -version
 ```
-⁠ ## Running the Application
+## Running the Application
 
 1. **Download the JAR File**
 
