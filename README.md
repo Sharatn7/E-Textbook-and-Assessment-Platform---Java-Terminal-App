@@ -1,5 +1,5 @@
 
-# CSC 540 - Project
+# CSC540- Project (Database Application Development Project) E-Textbook and Assessment Platform
  Team Members:
  1. Basaveswara Mukesh Suryadevara- bsuryad
  2. Deepika Patibandla- dpatiba2
