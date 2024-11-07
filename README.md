@@ -13,7 +13,7 @@ This project is packaged as an executable JAR file, making it easy to run on any
 
 ## Prerequisites
 
-- **Java JDK 8 or above** is required to run the application. You can download it from [Oracle's official website](https://www.oracle.com/java/technologies/javase-downloads.html) or install it using a package manager like `apt` (Linux), `brew` (macOS), or `choco` (Windows).
+- **Java JDK 22 or above** is required to run the application. You can download it from [Oracle's official website](https://www.oracle.com/java/technologies/javase-downloads.html) or install it using a package manager like `apt` (Linux), `brew` (macOS), or `choco` (Windows).
 
 To check if Java is installed, run:
 ```bash
