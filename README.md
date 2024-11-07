@@ -1,3 +1,13 @@
+#CSC 540 - Project
+ Team Members:
+ 1. Basaveswara Mukesh Suryadevara- bsuryad
+ 2. Deepika Patibandla- dpatiba2
+ 3. Sharat Neppalli- sneppal
+ 4. Sree Tulasi Shevva- sshevva
+
+
+
+
 # Interactive Terminal-Based Java Application
 
 This is a Java-based, terminal-driven, interactive application that provides a user-friendly menu for various operations. 
