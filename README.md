@@ -1,12 +1,10 @@
-#CSC 540 - Project
+
+# CSC 540 - Project
  Team Members:
  1. Basaveswara Mukesh Suryadevara- bsuryad
  2. Deepika Patibandla- dpatiba2
  3. Sharat Neppalli- sneppal
  4. Sree Tulasi Shevva- sshevva
-
-
-
 
 # Interactive Terminal-Based Java Application
 
