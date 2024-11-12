@@ -78,7 +78,7 @@ public class TAActiveCoursePage {
     }
 
     private boolean isCourseAssignedToTA(String courseId) {
-        String sql = "SELECT course_id FROM TA "
+        String sql = "SELECT TA.course_id FROM TA "
                 + "JOIN Courses ON TA.course_id = Courses.course_id "
                 + "WHERE ta_id = ? AND TA.course_id = ? AND end_date >= ?";
         try (Connection conn = DBConnect.getConnection();
