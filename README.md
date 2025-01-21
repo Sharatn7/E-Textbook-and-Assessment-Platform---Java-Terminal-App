@@ -87,3 +87,6 @@ Enter your choice (1-6):
 
 Enjoy using the application!
 
+## License
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
